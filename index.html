@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>事故報告書ダッシュボード | 千房グループ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --enj: #8B1A1A;
+    --enj-light: #f5e8e8;
+    --bg: #f9f7f4;
+    --bg-card: #ffffff;
+    --text: #1a1a1a;
+    --text-sub: #666;
+    --text-muted: #999;
+    --border: #e5e0d8;
+    --border-strong: #ccc5bb;
+    --amber: #d4860b;
+    --amber-light: #fef3e2;
+    --gray-light: #f0ede8;
+    --radius: 10px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Meiryo UI', 'Yu Gothic UI', 'Hiragino Kaku Gothic ProN', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .header {
+    background: var(--enj);
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-logo { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: 0.05em; }
+  .header-divider { width: 1px; height: 20px; background: rgba(255,255,255,0.3); }
+  .header-title { font-size: 13px; color: rgba(255,255,255,0.8); }
+  .header-badge {
+    font-size: 11px; background: rgba(255,255,255,0.15); color: #fff;
+    padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.25);
+  }
+  .upload-btn {
+    background: rgba(255,255,255,0.12); color: #fff;
+    border: 1px solid rgba(255,255,255,0.3); padding: 6px 16px;
+    border-radius: 6px; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: background 0.15s;
+  }
+  .upload-btn:hover { background: rgba(255,255,255,0.22); }
+  .main { padding: 24px; max-width: 1440px; margin: 0 auto; }
+
+  /* Filter bar */
+  .filter-bar {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 20px;
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+  .filter-bar select, .filter-bar input[type="text"] {
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px; color: var(--text);
+    background: var(--bg); outline: none; transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .filter-bar select:focus, .filter-bar input:focus { border-color: var(--enj); }
+  .filter-sep { flex: 1; }
+  .data-info { font-size: 12px; color: var(--text-muted); }
+  .data-info strong { color: var(--text-sub); }
+
+  /* KPI */
+  .kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 20px; }
+  .kpi-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+    position: relative; overflow: hidden; box-shadow: var(--shadow);
+  }
+  .kpi-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .kpi-card.red::before { background: var(--enj); }
+  .kpi-card.amber::before { background: var(--amber); }
+  .kpi-label { font-size: 11px; color: var(--text-muted); letter-spacing: 0.04em; margin-bottom: 6px; }
+  .kpi-value { font-size: 32px; font-weight: 700; line-height: 1; margin-bottom: 6px; letter-spacing: -0.02em; }
+  .kpi-card.red .kpi-value { color: var(--enj); }
+  .kpi-card.amber .kpi-value { color: var(--amber); }
+  .kpi-sub { font-size: 11px; color: var(--text-muted); }
+  .kpi-icon { position:absolute; right:20px; top:50%; transform:translateY(-50%); font-size:36px; opacity:0.07; }
+
+  /* Chart grid */
+  .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .chart-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow);
+  }
+  .chart-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+  .chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .chart-subtitle { font-size: 11px; color: var(--text-muted); }
+  .chart-store-label {
+    font-size: 12px; font-weight: 700; color: var(--enj);
+    background: var(--enj-light); padding: 3px 10px; border-radius: 4px;
+    border: 1px solid #e8c5c5; white-space: nowrap;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-sub); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Rank list */
+  .rank-list { list-style: none; }
+  .rank-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--gray-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: var(--text-sub); flex-shrink: 0;
+  }
+  .rank-num.top3 { background: var(--enj); color: #fff; }
+  .rank-store { flex: 1; font-size: 12px; color: var(--text); }
+  .rank-bar-wrap { width: 80px; background: var(--gray-light); border-radius: 2px; height: 6px; overflow: hidden; }
+  .rank-bar { height: 100%; background: var(--enj); border-radius: 2px; }
+  .rank-count { font-size: 12px; font-weight: 700; color: var(--enj); min-width: 28px; text-align: right; }
+
+  /* Donut */
+  .donut-wrap { position: relative; width: 160px; height: 160px; margin: 0 auto 12px; }
+  .donut-center { position: absolute; top:50%; left:50%; transform: translate(-50%,-50%); text-align:center; pointer-events:none; }
+  .donut-center-num { font-size: 22px; font-weight: 700; color: var(--text); }
+  .donut-center-label { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Table */
+  .table-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow);
+  }
+  .table-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    background: var(--gray-light); padding: 9px 12px; text-align: left;
+    font-size: 11px; font-weight: 700; color: var(--text-sub);
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+    cursor: pointer; user-select: none;
+  }
+  thead th:hover { background: #e8e4de; }
+  thead th.sort-asc::after { content: ' ▲'; color: var(--enj); }
+  thead th.sort-desc::after { content: ' ▼'; color: var(--enj); }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:hover { background: #faf8f5; }
+  tbody td { padding: 9px 12px; color: var(--text); }
+  tbody td.damage { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  tbody td.damage.high { color: var(--enj); }
+  .pagination {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-sub);
+  }
+  .page-btn {
+    border: 1px solid var(--border-strong); background: var(--bg-card);
+    border-radius: 5px; padding: 4px 10px; cursor: pointer;
+    font-size: 12px; color: var(--text-sub); transition: all 0.12s;
+  }
+  .page-btn:hover { background: var(--gray-light); }
+  .page-btn.active { background: var(--enj); color: #fff; border-color: var(--enj); }
+
+  /* Badges */
+  .cat-badge { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
+  .cat-qr { background: #e3f0ff; color: #1565c0; }
+  .cat-point { background: #f3e5f5; color: #6a1b9a; }
+  .cat-change { background: #fff8e1; color: #f57f17; }
+  .cat-foreign { background: #fce4ec; color: #880e4f; }
+  .cat-viol { background: #fbe9e7; color: #bf360c; }
+  .cat-reservation { background: #e0f2f1; color: #004d40; }
+  .cat-other { background: var(--gray-light); color: var(--text-sub); }
+
+  .footer {
+    text-align: center; padding: 24px; font-size: 11px; color: var(--text-muted);
+    border-top: 1px solid var(--border); margin-top: 8px;
+  }
+
+  @media (max-width: 1000px) {
+    .chart-grid { grid-template-columns: 1fr; }
+    .chart-grid-2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 700px) {
+    .main { padding: 12px; }
+    .kpi-row { gap: 10px; }
+    .filter-bar { gap: 10px; }
+    .header-logo { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <span class="header-logo">千房グループ</span>
+    <div class="header-divider"></div>
+    <span class="header-title">事故報告書ダッシュボード</span>
+    <span class="header-badge" id="updateBadge">読込中…</span>
+  </div>
+  <button class="upload-btn" onclick="openUploadFolder()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Excelアップロード
+  </button>
+</header>
+
+<main class="main">
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <span class="filter-label">絞り込み</span>
+    <select id="filterCategory" onchange="applyFilters()">
+      <option value="">事故種別：すべて</option>
+      <option value="QR/電子決済ミス">QR/電子決済ミス</option>
+      <option value="ポイント忘れ/ミス">ポイント忘れ/ミス</option>
+      <option value="釣銭/金額ミス">釣銭/金額ミス</option>
+      <option value="異物混入/クレーム">異物混入/クレーム</option>
+      <option value="規約違反/罰金">規約違反/罰金</option>
+      <option value="予約/提供ミス">予約/提供ミス</option>
+      <option value="その他">その他</option>
+    </select>
+    <select id="filterStore" onchange="applyFilters()">
+      <option value="">店舗：すべて</option>
+    </select>
+    <select id="filterMonth" onchange="applyFilters()">
+      <option value="">期間：すべて</option>
+    </select>
+    <div class="filter-sep"></div>
+    <span class="data-info" id="dataInfo">集計対象：<strong>193件</strong></span>
+  </div>
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi-card red">
+      <div class="kpi-label">累計事故件数</div>
+      <div class="kpi-value" id="kpi-total">193件</div>
+      <div class="kpi-sub" id="kpi-period">全期間（2024年11月〜2026年5月）</div>
+      <div class="kpi-icon">⚠</div>
+    </div>
+    <div class="kpi-card amber">
+      <div class="kpi-label">累計損害額</div>
+      <div class="kpi-value" id="kpi-damage">761,465円</div>
+      <div class="kpi-sub">会社負担・自己負担含む</div>
+      <div class="kpi-icon">¥</div>
+    </div>
+  </div>
+
+  <!-- Chart row 1: 月別推移（店舗連動） + 店舗ランキング -->
+  <div class="chart-grid">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">月別事故発生推移</div>
+          <div class="chart-subtitle">発生件数と損害額の月次変化</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="monthlyStoreLabel" class="chart-store-label" style="display:none"></span>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-dot" style="background:#8B1A1A"></span>件数</span>
+            <span class="legend-item"><span class="legend-dot" style="border:1.5px dashed #d4860b;background:transparent"></span>損害額</span>
+          </div>
+        </div>
+      </div>
+      <div style="position:relative;width:100%;height:260px;">
+        <canvas id="monthlyChart" role="img" aria-label="月別事故発生件数と損害額の推移グラフ">月別事故件数推移</canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">店舗別件数ランキング</div>
+          <div class="chart-subtitle">上位10店舗</div>
+        </div>
+        <span style="font-size:10px;background:var(--enj-light);color:var(--enj);padding:2px 8px;border-radius:4px;border:1px solid #e8c5c5;">件数順</span>
+      </div>
+      <ul class="rank-list" id="storeRankList"></ul>
+    </div>
+  </div>
+
+  <!-- Chart row 2: 種別ドーナツ + 損害額種別 -->
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">事故種別内訳</div>
+          <div class="chart-subtitle" id="catChartSub">件数ベース・全店舗</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+        <div class="donut-wrap" style="flex-shrink:0;">
+          <canvas id="categoryChart" role="img" aria-label="事故種別の内訳ドーナツグラフ">事故種別内訳</canvas>
+          <div class="donut-center">
+            <div class="donut-center-num" id="donutTotal">193</div>
+            <div class="donut-center-label">件</div>
+          </div>
+        </div>
+        <div class="legend" style="flex-direction:column;gap:6px;flex:1;" id="catLegend"></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">損害額 種別別</div>
+          <div class="chart-subtitle" id="damageChartSub">各カテゴリの損失規模・全店舗</div>
+        </div>
+      </div>
+      <div style="position:relative;width:100%;height:240px;">
+        <canvas id="damageCatChart" role="img" aria-label="事故種別ごとの損害額比較棒グラフ">損害額種別内訳</canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="chart-title">事故報告書 一覧</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <input type="text" id="searchInput" placeholder="店舗名・事故内容で検索…" style="width:220px;" onkeyup="applyFilters()">
+        <span style="font-size:12px;color:var(--text-muted);" id="tableCount"></span>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortTable('date')">発生日</th>
+            <th onclick="sortTable('store')">店舗</th>
+            <th onclick="sortTable('category')">種別</th>
+            <th>事故内容</th>
+            <th onclick="sortTable('damage')" style="text-align:right;">損害額</th>
+            <th onclick="sortTable('burden')">負担</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="paginationArea"></div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  千房ホールディングス株式会社 営業推進本部 | <span id="footerUpdate">データ読込中…</span>
+</footer>
+
+<script>
+// ============================================================
+// ★ GAS WebアプリのURLをここに設定してください
+// ============================================================
+const GAS_URL = "https://script.google.com/macros/s/AKfycbx78ovCcxA3yRbDWaZiF8iBUSh3eg-oepDYIWdFIezndiOG615bydAPkkT43reyJUxz/exec";
+
+const UPLOAD_FOLDER_URL = "https://drive.google.com/drive/folders/1MPpCZ_8msga89fqwCI0kslHfydI1LK7P";
+
+function openUploadFolder() {
+  window.open(UPLOAD_FOLDER_URL, "_blank");
+}
+
+// ============================================================
+// ローディング状態管理
+// ============================================================
+function showLoading() {
+  document.getElementById("updateBadge").textContent = "読込中…";
+  document.getElementById("dataInfo").innerHTML = "読込中…";
+  document.getElementById("kpi-total").textContent = "－";
+  document.getElementById("kpi-damage").textContent = "－";
+  document.getElementById("tableBody").innerHTML =
+    `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">データを読み込んでいます…</td></tr>`;
+}
+
+function showError(msg) {
+  document.getElementById("updateBadge").textContent = "エラー";
+  document.getElementById("tableBody").innerHTML =
+    `<tr><td colspan="6" style="text-align:center;padding:32px;color:#c0392b">${msg}</td></tr>`;
+}
+
+// ============================================================
+// GAS APIからデータ取得
+// ============================================================
+async function loadData() {
+  showLoading();
+  try {
+    const res = await fetch(GAS_URL, { method: "GET", redirect: "follow" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    const records = json.records || [];
+    if (records.length === 0) throw new Error("データが0件です");
+
+    // グローバルにセット
+    window.RAW_DATA = records;
+    window.filteredData = [...records];
+
+    // 更新日時表示
+    const updatedAt = json.updatedAt ? new Date(json.updatedAt) : new Date();
+    const dateStr = updatedAt.toLocaleString("ja-JP", {timeZone:"Asia/Tokyo",
+      year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+    document.getElementById("updateBadge").textContent = "最終更新 " + dateStr;
+    document.getElementById("footerUpdate").textContent =
+      "データ出典：Google Sheets マスター | 最終更新 " + dateStr;
+
+    // 月軸を動的生成
+    rebuildMonthAxis(records);
+
+    // UI初期化
+    populateFilters();
+    buildMonthlyChart(records);
+    buildCategoryChart(records);
+    buildDamageCatChart(records);
+    buildStoreRank();
+    renderTable();
+
+  } catch(e) {
+    console.error(e);
+    showError("データの読み込みに失敗しました。GAS URLを確認してください。<br><small>" + e.message + "</small>");
+    document.getElementById("updateBadge").textContent = "エラー";
+  }
+}
+
+// ============================================================
+// 月軸を取得データから動的生成
+// ============================================================
+function rebuildMonthAxis(records) {
+  const monthSet = new Set();
+  records.forEach(r => {
+    if (r.date) {
+      const mk = r.date.slice(0,7).replace("/","-");
+      if (/^\d{4}-\d{2}$/.test(mk)) monthSet.add(mk);
+    }
+  });
+  const sorted = [...monthSet].sort();
+  window.MONTH_KEYS = sorted;
+  window.ALL_MONTHS = sorted.map(m => m.slice(2,4) + "/" + m.slice(5,7));
+}
+
+// ============================================================
+// 以下は既存ロジック（RAW_DATA → window.RAW_DATA / filteredData → window.filteredData）
+// ============================================================
+const RAW_DATA_STATIC = [
+  {date:"2026/05/13",store:"イクスピアリ店",category:"QR/電子決済ミス",category_raw:"会計金額入力誤りによる、200円多く受領",damage:0,burden:""},
+  {date:"2026/05/05",store:"京都アバンティ支店",category:"その他",category_raw:"出前館 商品重複に伴う提供ミスによる損害",damage:2080,burden:"会社負担"},
+  {date:"2026/04/24",store:"池袋支店",category:"QR/電子決済ミス",category_raw:"4月24日の回収不能金について",damage:5319,burden:"会社負担"},
+  {date:"2026/04/05",store:"恵比寿ガーデンプレイス店",category:"釣銭/金額ミス",category_raw:"お会計金額の間違い",damage:20,burden:"会社負担"},
+  {date:"2026/04/03",store:"あべのキューズモール支店",category:"QR/電子決済ミス",category_raw:"クレジット未清算について",damage:3993,burden:"会社負担"},
+  {date:"2026/03/18",store:"道頓堀ビル店",category:"予約/提供ミス",category_raw:"ご予約コースの一部出し忘れ",damage:0,burden:"会社負担"},
+  {date:"2026/03/18",store:"ぷれじでんと 大丸心斎橋店",category:"ポイント忘れ/ミス",category_raw:"ポイント利用の引き間違いによる事故",damage:400,burden:"会社負担"},
+  {date:"2026/03/01",store:"高槻阪急スクエア支店",category:"釣銭/金額ミス",category_raw:"商品券数え間違え",damage:1000,burden:"会社負担"},
+  {date:"2026/02/03",store:"ぷれじでんと 大丸心斎橋店",category:"その他",category_raw:"リンベルチケット紛失",damage:24750,burden:"会社負担"},
+  {date:"2026/02/03",store:"ぷれじでんと 大丸心斎橋店",category:"その他",category_raw:"リンベルチケット紛失(2)",damage:24750,burden:"会社負担"},
+  {date:"2026/02/11",store:"ぷれじでんと 大丸心斎橋店",category:"その他",category_raw:"多くお代金を頂戴し現金書留送付",damage:611,burden:"会社負担"},
+  {date:"2026/01/29",store:"琥",category:"規約違反/罰金",category_raw:"森ビル 運営管理規定違反",damage:20000,burden:"会社負担"},
+  {date:"2026/01/31",store:"ぷれじでんと 大丸心斎橋店",category:"その他",category_raw:"リンベルチケット紛失(3)",damage:24750,burden:"会社負担"},
+  {date:"2026/01/14",store:"ぷれじでんと 大丸心斎橋店",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイントの値引き間違い",damage:250,burden:"会社負担"},
+  {date:"2026/01/05",store:"ぷれじでんと 都ホテル大阪店",category:"異物混入/クレーム",category_raw:"お客様クレームによる代金返金",damage:2617,burden:"会社負担"},
+  {date:"2026/01/05",store:"堺高島屋支店",category:"釣銭/金額ミス",category_raw:"釣り銭渡し間違いによる損失",damage:5000,burden:"会社負担"},
+  {date:"2025/12/31",store:"ぷれじでんと 都ホテル大阪店",category:"その他",category_raw:"グルメサイトポイント100円分多く引き",damage:100,burden:"会社負担"},
+  {date:"2025/12/30",store:"琥",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント引き忘れ（400円）",damage:0,burden:""},
+  {date:"2025/12/18",store:"琥",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント引き忘れ（100円）",damage:0,burden:""},
+  {date:"2025/12/17",store:"恵比寿ガーデンプレイス店",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント引き忘れ（2400円）",damage:0,burden:""},
+  {date:"2025/12/03",store:"京都アバンティ支店",category:"ポイント忘れ/ミス",category_raw:"グルサイトポイント分を引き忘れ",damage:110,burden:"会社負担"},
+  {date:"2025/11/19",store:"※営業推進本部",category:"その他",category_raw:"異議申し立ての申請もれ",damage:2880,burden:""},
+  {date:"2025/11/16",store:"CKららぽ甲子園",category:"QR/電子決済ミス",category_raw:"端末打ち込みミス（800円不足）",damage:800,burden:"会社負担"},
+  {date:"2025/11/09",store:"ぷれじでんと 大丸心斎橋店",category:"ポイント忘れ/ミス",category_raw:"170円 食べログポイント引き忘れ",damage:0,burden:""},
+  {date:"2025/11/01",store:"CKららぽ甲子園",category:"規約違反/罰金",category_raw:"お客様駐輪場不正利用による罰金",damage:10000,burden:"自己負担"},
+  {date:"2025/11/02",store:"ぷれじでんと 大丸心斎橋店",category:"釣銭/金額ミス",category_raw:"レジ余剰金の発生（5,000円）",damage:0,burden:""},
+  {date:"2025/10/26",store:"ぷれじでんと 大丸心斎橋店",category:"ポイント忘れ/ミス",category_raw:"200円分 一休ポイント引き忘れ",damage:0,burden:""},
+  {date:"2025/10/11",store:"イクスピアリ店",category:"QR/電子決済ミス",category_raw:"クレジットお支払金額の誤り（630円）",damage:630,burden:"会社負担"},
+  {date:"2025/10/02",store:"あべのキューズモール支店",category:"ポイント忘れ/ミス",category_raw:"大阪ポイント利用処理不能・回収不能",damage:1131,burden:"会社負担"},
+  {date:"2025/10/01",store:"道頓堀ビル店",category:"QR/電子決済ミス",category_raw:"QRコード決済による損失（70円）",damage:70,burden:"会社負担"},
+  {date:"2025/09/20",store:"道頓堀ビル店",category:"QR/電子決済ミス",category_raw:"QRコード決済時の打ち間違え（720円）",damage:720,burden:"会社負担"},
+  {date:"2025/09/19",store:"琥",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント処理間違い（200円）",damage:200,burden:"会社負担"},
+  {date:"2025/09/06",store:"イクスピアリ店",category:"規約違反/罰金",category_raw:"イクスピアリ営業管理規程違反（反則金）",damage:5000,burden:""},
+  {date:"2025/08/21",store:"道頓堀ビル店",category:"その他",category_raw:"オーダー重複により多くお会計",damage:681,burden:"会社負担"},
+  {date:"2025/08/17",store:"CKららぽ甲子園",category:"QR/電子決済ミス",category_raw:"端末打ち込みミス（45円不足）",damage:45,burden:"会社負担"},
+  {date:"2025/08/15",store:"リノアス八尾支店",category:"その他",category_raw:"焼そば大盛代金返金の件",damage:1180,burden:""},
+  {date:"2025/08/12",store:"ぷれじでんと 都ホテル大阪店",category:"QR/電子決済ミス",category_raw:"QUICPay未処理による損害金",damage:2326,burden:"自己負担"},
+  {date:"2025/08/11",store:"有明ガーデン支店",category:"QR/電子決済ミス",category_raw:"クレジット未決済による売上損害",damage:8943,burden:"会社負担"},
+  {date:"2025/08/09",store:"ぷれじでんと 大丸心斎橋店",category:"異物混入/クレーム",category_raw:"鉄板掃除中に油が飛散しお客様の衣類破損",damage:189200,burden:"会社負担"},
+  {date:"2025/08/07",store:"※わら焼鉄板焼 いやさか",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント未収（1,500円）",damage:1500,burden:"自己負担"},
+  {date:"2025/08/06",store:"イクスピアリ店",category:"QR/電子決済ミス",category_raw:"QRコード決済で20円多く頂戴",damage:0,burden:""},
+  {date:"2025/08/03",store:"CKららぽ甲子園",category:"QR/電子決済ミス",category_raw:"端末打ち込みミス（1円不足）",damage:1,burden:"会社負担"},
+  {date:"2025/07/26",store:"千日前本店",category:"QR/電子決済ミス",category_raw:"クイックペイ金額打ち間違い（5円）",damage:5,burden:"会社負担"},
+  {date:"2025/07/20",store:"ららぽーと名古屋みなとアクルス支店",category:"QR/電子決済ミス",category_raw:"dポイント8,240円分回収不能",damage:8240,burden:""},
+  {date:"2025/07/16",store:"道頓堀ビル店",category:"釣銭/金額ミス",category_raw:"お会計のしまい忘れによる不足金",damage:4200,burden:"会社負担"},
+  {date:"2025/07/15",store:"イクスピアリ店",category:"規約違反/罰金",category_raw:"イクスピアリ営業管理規程違反1回目",damage:0,burden:""},
+  {date:"2025/07/14",store:"ぷれじでんと Retreat",category:"その他",category_raw:"レジ端末不具合による損害金",damage:32124,burden:"会社負担"},
+  {date:"2025/07/12",store:"有楽町ビックカメラ支店",category:"QR/電子決済ミス",category_raw:"交通系ICでの支払いで100円の過不足金",damage:0,burden:"会社負担"},
+  {date:"2025/07/05",store:"CKららぽ甲子園",category:"異物混入/クレーム",category_raw:"お好み焼の生焼けによる返金対応",damage:792,burden:"会社負担"},
+  {date:"2025/06/26",store:"道頓堀ビル店",category:"QR/電子決済ミス",category_raw:"PayPay支払いのミス（7,140円損失）",damage:7140,burden:"会社負担"},
+  {date:"2025/06/20",store:"セレオ八王子支店",category:"QR/電子決済ミス",category_raw:"QRコード決済時の打ち間違い（268円）",damage:0,burden:"会社負担"},
+  {date:"2025/06/19",store:"CKららぽ甲子園",category:"規約違反/罰金",category_raw:"防火防災講習不参加による反則金",damage:10000,burden:"会社負担"},
+  {date:"2025/06/10",store:"京都アバンティ支店",category:"QR/電子決済ミス",category_raw:"QRコード決済、端末処理漏れ（1,500円）",damage:1500,burden:"会社負担"},
+  {date:"2025/06/07",store:"高槻阪急スクエア支店",category:"QR/電子決済ミス",category_raw:"レジの会計の打ち込み間違い（270円）",damage:0,burden:""},
+  {date:"2025/06/03",store:"CKららぽ甲子園",category:"ポイント忘れ/ミス",category_raw:"ポイント支払いの打ち込みミス（128円）",damage:128,burden:"会社負担"},
+  {date:"2025/05/30",store:"おでん すみ吉 心斎橋",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイントの値引き忘れ（2,380円）",damage:2380,burden:""},
+  {date:"2025/05/21",store:"JO-TERRACE OSAKA店",category:"QR/電子決済ミス",category_raw:"レジ会計のミス（80円多く頂戴）",damage:0,burden:"会社負担"},
+  {date:"2025/05/17",store:"ルミネ立川支店",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント引き忘れ（100円）",damage:0,burden:"会社負担"},
+  {date:"2025/05/21",store:"ららぽーと名古屋みなとアクルス支店",category:"異物混入/クレーム",category_raw:"お客様に水をこぼしてしまいました",damage:7710,burden:""},
+  {date:"2025/05/13",store:"ルミネ立川支店",category:"QR/電子決済ミス",category_raw:"交通系ICでの精算時に1円少なく",damage:1,burden:"会社負担"},
+  {date:"2025/05/02",store:"ぷれじでんと 日航ビル店",category:"ポイント忘れ/ミス",category_raw:"食べログ270ポイント利用忘れ",damage:0,burden:""},
+  {date:"2025/05/02",store:"ぷれじでんと 日航ビル店",category:"ポイント忘れ/ミス",category_raw:"ポイントの利用忘れ（270円）",damage:270,burden:""},
+  {date:"2025/05/06",store:"おでん すみ吉 心斎橋",category:"QR/電子決済ミス",category_raw:"POSレジでの金額入力ミス（90円）",damage:90,burden:"会社負担"},
+  {date:"2025/04/29",store:"道頓堀ビル店",category:"QR/電子決済ミス",category_raw:"PayPay決済での回収不能金（10円）",damage:10,burden:"会社負担"},
+  {date:"2025/04/28",store:"有明ガーデン支店",category:"異物混入/クレーム",category_raw:"髪の毛が混入し商品を返金",damage:3908,burden:""},
+  {date:"2025/04/25",store:"高槻阪急スクエア支店",category:"QR/電子決済ミス",category_raw:"バーコード決済の決済ミス（300円）",damage:300,burden:"会社負担"},
+  {date:"2025/04/22",store:"リノアス八尾支店",category:"QR/電子決済ミス",category_raw:"交通系IC金額差異（180円）",damage:180,burden:""},
+  {date:"2025/04/16",store:"京橋京阪モール支店",category:"その他",category_raw:"いっとくパス回収不能金（2件目）",damage:3397,burden:"会社負担"},
+  {date:"2025/04/08",store:"ぷれじでんと 北店",category:"ポイント忘れ/ミス",category_raw:"誤った金額のグルメサイトポイント処理（30円）",damage:30,burden:""},
+  {date:"2025/04/06",store:"千日前本店",category:"QR/電子決済ミス",category_raw:"QR決済の金額打ち間違い（360円）",damage:360,burden:"会社負担"},
+  {date:"2025/04/02",store:"京橋京阪モール支店",category:"その他",category_raw:"いっとくパス回収不能金（3,379円）",damage:3379,burden:"会社負担"},
+  {date:"2025/03/31",store:"道頓堀ビル店",category:"QR/電子決済ミス",category_raw:"交通系ICによる事故（20円）",damage:20,burden:"会社負担"},
+  {date:"2025/03/30",store:"JO-TERRACE OSAKA店",category:"QR/電子決済ミス",category_raw:"QRコード超過決済（50円）",damage:0,burden:"会社負担"},
+  {date:"2025/03/29",store:"恵比寿ガーデンプレイス店",category:"ポイント忘れ/ミス",category_raw:"事前決済メニューを重複してお客様から頂いた",damage:0,burden:""},
+  {date:"2025/03/25",store:"道頓堀ビル店",category:"釣銭/金額ミス",category_raw:"5,480円のプラスの過不足金",damage:0,burden:"会社負担"},
+  {date:"2025/03/25",store:"堺高島屋支店",category:"釣銭/金額ミス",category_raw:"お客様とのお預かり金渡し間違いによる損失",damage:10000,burden:""},
+  {date:"2025/03/20",store:"琥",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント打ち間違え（109円）",damage:109,burden:""},
+  {date:"2025/03/19",store:"有明ガーデン支店",category:"規約違反/罰金",category_raw:"衛生検査でC判定により罰金50,000円",damage:50000,burden:""},
+  {date:"2025/03/18",store:"道頓堀ビル店",category:"予約/提供ミス",category_raw:"ご予約コースの一部出し忘れ（56,550円）",damage:0,burden:"会社負担"},
+  {date:"2025/03/11",store:"ぷれじでんと 北店",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイントの引き間違い（300円）",damage:300,burden:"会社負担"},
+  {date:"2025/03/17",store:"堺高島屋支店",category:"異物混入/クレーム",category_raw:"お持ち帰りに髪の毛混入（返金1,846円）",damage:1846,burden:"会社負担"},
+  {date:"2025/03/11",store:"高槻阪急スクエア支店",category:"釣銭/金額ミス",category_raw:"商品券の数え間違え（1,000円）",damage:0,burden:""},
+  {date:"2025/02/28",store:"高槻阪急スクエア支店",category:"釣銭/金額ミス",category_raw:"商品券の数え間違え（1,000円）",damage:0,burden:""},
+  {date:"2025/02/11",store:"ぷれじでんと 大丸心斎橋店",category:"QR/電子決済ミス",category_raw:"多くお代金を頂戴し現金書留送付（921円）",damage:611,burden:"会社負担"},
+  {date:"2025/01/30",store:"ぷれじでんと 日航ビル店",category:"ポイント忘れ/ミス",category_raw:"ポイント返却を忘れていた為（40円）",damage:0,burden:""},
+  {date:"2025/01/31",store:"ぷれじでんと 大丸心斎橋店",category:"QR/電子決済ミス",category_raw:"未契約ロッカー使用の違約金（1,100円）",damage:1100,burden:"会社負担"},
+  {date:"2025/01/30",store:"京橋京阪モール支店",category:"釣銭/金額ミス",category_raw:"レジ金過不足（二重釣銭渡し6,000円）",damage:6000,burden:"会社負担"},
+  {date:"2025/01/29",store:"琥",category:"規約違反/罰金",category_raw:"森ビル施錠忘れ・開錠依頼で罰金20,000円",damage:20000,burden:"会社負担"},
+  {date:"2025/01/14",store:"ぷれじでんと 大丸心斎橋店",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイントの値引き間違い（250円）",damage:250,burden:"会社負担"},
+  {date:"2025/01/09",store:"千日前本店",category:"予約/提供ミス",category_raw:"ご予約内容の確認漏れによる予定以上の商品提供",damage:2800,burden:"会社負担"},
+  {date:"2025/01/05",store:"ぷれじでんと 都ホテル大阪店",category:"異物混入/クレーム",category_raw:"お客様クレームによる代金返金（2件目）",damage:1936,burden:""},
+  {date:"2025/01/05",store:"堺高島屋支店",category:"釣銭/金額ミス",category_raw:"釣り銭渡し間違いによる損失（5,000円）",damage:5000,burden:"会社負担"},
+  {date:"2025/01/02",store:"ルミネ立川支店",category:"釣銭/金額ミス",category_raw:"商品券を1枚多くいただいていました",damage:0,burden:"会社負担"},
+  {date:"2024/12/31",store:"千日前本店",category:"QR/電子決済ミス",category_raw:"QRコード決済の金額間違い（200円）",damage:200,burden:"会社負担"},
+  {date:"2024/12/31",store:"千日前本店",category:"QR/電子決済ミス",category_raw:"QRコード決済の金額間違い（200円）2件目",damage:200,burden:"会社負担"},
+  {date:"2024/12/18",store:"琥",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント引き忘れ（100円）",damage:0,burden:""},
+  {date:"2024/12/17",store:"恵比寿ガーデンプレイス店",category:"ポイント忘れ/ミス",category_raw:"グルメサイトポイント引き忘れ（2,400円）",damage:0,burden:""},
+  {date:"2024/12/03",store:"京都アバンティ支店",category:"ポイント忘れ/ミス",category_raw:"グルサイトポイント分を引き忘れ（110円）",damage:110,burden:"会社負担"},
+  {date:"2024/11/22",store:"池袋支店",category:"異物混入/クレーム",category_raw:"お客様の衣類にソースが付着（クリーニング）",damage:5872,burden:""},
+  {date:"2024/11/22",store:"池袋支店",category:"異物混入/クレーム",category_raw:"お客様の衣類にソースが付着（2件目）",damage:5282,burden:""},
+  {date:"2024/11/16",store:"CKららぽ甲子園",category:"QR/電子決済ミス",category_raw:"端末打ち込みミス（800円）",damage:800,burden:"会社負担"},
+  {date:"2024/11/05",store:"京都アバンティ支店",category:"QR/電子決済ミス",category_raw:"QRコード決済、端末処理漏れ（3,780円）",damage:3780,burden:"会社負担"},
+];
+
+// 月軸は動的生成（GASから取得後にrebuildMonthAxisで上書き）
+// フォールバック用初期値（静的データから生成）
+window.MONTH_KEYS = ["2024-11","2024-12","2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05"];
+window.ALL_MONTHS = MONTH_KEYS.map(m => m.slice(2,4)+"/"+m.slice(5,7));
+window.RAW_DATA = RAW_DATA_STATIC;
+window.filteredData = [...RAW_DATA_STATIC];
+
+const CAT_COLORS = {
+  "その他":"#73726c",
+  "ポイント忘れ/ミス":"#7F77DD",
+  "QR/電子決済ミス":"#1565c0",
+  "釣銭/金額ミス":"#d4860b",
+  "異物混入/クレーム":"#A32D2D",
+  "規約違反/罰金":"#3c3434",
+  "予約/提供ミス":"#0F6E56"
+};
+const CAT_ORDER = ["その他","ポイント忘れ/ミス","QR/電子決済ミス","釣銭/金額ミス","異物混入/クレーム","規約違反/罰金","予約/提供ミス"];
+
+let sortCol = "date", sortDir = -1, currentPage = 1;
+const PAGE_SIZE = 15;
+let monthlyChart, categoryChart, damageCatChart;
+
+// --- Monthly chart (dynamic) ---
+function calcMonthly(data) {
+  const counts = MONTH_KEYS.map(()=>0);
+  const damage = MONTH_KEYS.map(()=>0);
+  data.forEach(r=>{
+    const mk = r.date ? r.date.slice(0,7).replace("/","-") : "";
+    const idx = MONTH_KEYS.indexOf(mk);
+    if(idx>=0){ counts[idx]++; damage[idx]+=r.damage; }
+  });
+  return {counts, damage};
+}
+
+function buildMonthlyChart(data) {
+  const {counts, damage} = calcMonthly(data);
+  const ctx = document.getElementById("monthlyChart").getContext("2d");
+  if(monthlyChart) monthlyChart.destroy();
+  monthlyChart = new Chart(ctx, {
+    type:"bar",
+    data:{
+      labels: ALL_MONTHS,
+      datasets:[
+        {label:"件数", data:counts, backgroundColor:"rgba(139,26,26,0.75)", borderRadius:3, yAxisID:"y"},
+        {label:"損害額（円）", data:damage, type:"line",
+         borderColor:"#d4860b", backgroundColor:"rgba(212,134,11,0.06)",
+         borderWidth:2, borderDash:[5,3], pointRadius:3,
+         pointBackgroundColor:"#d4860b", fill:true, yAxisID:"y2", tension:0.3}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{mode:"index",intersect:false,
+        callbacks:{label:ctx=>ctx.datasetIndex===0?" "+ctx.raw+"件":" "+ctx.raw.toLocaleString()+"円"}}},
+      scales:{
+        x:{ticks:{font:{size:10},maxRotation:0,autoSkip:false}, grid:{display:false}},
+        y:{position:"left", ticks:{font:{size:10},callback:v=>v+"件"}, grid:{color:"rgba(0,0,0,0.06)"}},
+        y2:{position:"right", ticks:{font:{size:10},callback:v=>v>=10000?Math.round(v/1000)+"K円":v+"円"}, grid:{display:false}}
+      }
+    }
+  });
+}
+
+// --- Category charts (dynamic) ---
+function calcCats(data) {
+  const counts={}, damage={};
+  CAT_ORDER.forEach(c=>{counts[c]=0;damage[c]=0;});
+  data.forEach(r=>{
+    if(counts[r.category]!==undefined){counts[r.category]++;damage[r.category]+=r.damage;}
+    else{counts["その他"]++;damage["その他"]+=r.damage;}
+  });
+  return {counts, damage};
+}
+
+function buildCategoryChart(data) {
+  const {counts} = calcCats(data);
+  const total = Object.values(counts).reduce((s,v)=>s+v,0);
+  document.getElementById("donutTotal").textContent = total;
+  const ctx = document.getElementById("categoryChart").getContext("2d");
+  if(categoryChart) categoryChart.destroy();
+  categoryChart = new Chart(ctx,{
+    type:"doughnut",
+    data:{
+      labels:CAT_ORDER,
+      datasets:[{
+        data:CAT_ORDER.map(c=>counts[c]),
+        backgroundColor:CAT_ORDER.map(c=>CAT_COLORS[c]),
+        borderWidth:2, borderColor:"#fff", hoverOffset:4
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:"68%",
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>" "+ctx.label+": "+ctx.raw+"件"}}}
+    }
+  });
+  const legend = document.getElementById("catLegend");
+  legend.innerHTML = CAT_ORDER.map(c=>{
+    const pct = total>0 ? Math.round(counts[c]/total*100) : 0;
+    return `<span class="legend-item"><span class="legend-dot" style="background:${CAT_COLORS[c]}"></span>${c} <span style="color:var(--text-muted)">${counts[c]}件 (${pct}%)</span></span>`;
+  }).join("");
+}
+
+function buildDamageCatChart(data) {
+  const {damage} = calcCats(data);
+  const ctx = document.getElementById("damageCatChart").getContext("2d");
+  if(damageCatChart) damageCatChart.destroy();
+  damageCatChart = new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:CAT_ORDER.map(l=>l.length>10?l.slice(0,10)+"…":l),
+      datasets:[{
+        data:CAT_ORDER.map(c=>damage[c]),
+        backgroundColor:CAT_ORDER.map(c=>CAT_COLORS[c]),
+        borderRadius:4
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>" "+ctx.raw.toLocaleString()+"円"}}},
+      scales:{
+        x:{ticks:{font:{size:9},maxRotation:35,autoSkip:false}, grid:{display:false}},
+        y:{ticks:{font:{size:10},callback:v=>v>=10000?Math.round(v/1000)+"K円":v+"円"}, grid:{color:"rgba(0,0,0,0.06)"}}
+      }
+    }
+  });
+}
+
+// --- Store rank (always all data) ---
+function buildStoreRank() {
+  const counts={};
+  (window.RAW_DATA||[]).forEach(r=>{ counts[r.store]=(counts[r.store]||0)+1; });
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const max=sorted[0][1];
+  document.getElementById("storeRankList").innerHTML=sorted.map(([name,cnt],i)=>`
+    <li class="rank-item">
+      <span class="rank-num ${i<3?"top3":""}">${i+1}</span>
+      <span class="rank-store">${name}</span>
+      <div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
+      <span class="rank-count">${cnt}</span>
+    </li>`).join("");
+}
+
+function populateFilters() {
+  const data = window.RAW_DATA || [];
+  const stores = [...new Set(data.map(r=>r.store))].sort();
+  const sel = document.getElementById("filterStore");
+  // リセット（再呼び出し時の重複防止）
+  while(sel.options.length > 1) sel.remove(1);
+  stores.forEach(s=>{ const o=document.createElement("option");o.value=s;o.textContent=s;sel.appendChild(o); });
+  const months = [...new Set(data.map(r=>r.date?r.date.slice(0,7).replace("/","-"):""))].filter(Boolean).sort().reverse();
+  const msel = document.getElementById("filterMonth");
+  while(msel.options.length > 1) msel.remove(1);
+  months.forEach(m=>{ const o=document.createElement("option");o.value=m;o.textContent=m.replace(/-/g,"/");msel.appendChild(o); });
+}
+
+function getCatClass(c){
+  if(c.includes("QR"))return"cat-qr";
+  if(c.includes("ポイント"))return"cat-point";
+  if(c.includes("釣銭")||c.includes("金額"))return"cat-change";
+  if(c.includes("異物")||c.includes("クレーム"))return"cat-foreign";
+  if(c.includes("規約")||c.includes("罰金"))return"cat-viol";
+  if(c.includes("予約"))return"cat-reservation";
+  return"cat-other";
+}
+
+function renderTable() {
+  const fd = window.filteredData || [];
+  const start=(currentPage-1)*PAGE_SIZE;
+  document.getElementById("tableBody").innerHTML=fd.slice(start,start+PAGE_SIZE).map(r=>`
+    <tr>
+      <td style="white-space:nowrap;font-size:12px;color:var(--text-sub)">${r.date}</td>
+      <td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.store}</td>
+      <td><span class="cat-badge ${getCatClass(r.category)}">${r.category}</span></td>
+      <td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-sub)">${r.category_raw}</td>
+      <td class="damage ${r.damage>10000?"high":""}">${r.damage===0?"－":r.damage.toLocaleString()+"円"}</td>
+      <td style="font-size:11px;color:var(--text-muted)">${r.burden||"－"}</td>
+    </tr>`).join("");
+  document.getElementById("tableCount").textContent=`${fd.length}件`;
+  renderPagination();
+}
+
+function renderPagination() {
+  const fd = window.filteredData || [];
+  const total=Math.ceil(fd.length/PAGE_SIZE);
+  const el=document.getElementById("paginationArea");
+  if(total<=1){el.innerHTML="";return;}
+  let html=`<span>${currentPage} / ${total} ページ</span>`;
+  html+=`<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?"disabled":""}>‹ 前</button>`;
+  for(let i=Math.max(1,currentPage-2);i<=Math.min(total,currentPage+2);i++)
+    html+=`<button class="page-btn ${i===currentPage?"active":""}" onclick="goPage(${i})">${i}</button>`;
+  html+=`<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===total?"disabled":""}>次 ›</button>`;
+  el.innerHTML=html;
+}
+
+function goPage(p){
+  const total=Math.ceil((window.filteredData||[]).length/PAGE_SIZE);
+  if(p<1||p>total)return;
+  currentPage=p; renderTable();
+}
+
+function sortTable(col){
+  if(sortCol===col)sortDir*=-1; else{sortCol=col;sortDir=-1;}
+  (window.filteredData||[]).sort((a,b)=>{
+    let av=col==="damage"?a.damage:(a[col]??"");
+    let bv=col==="damage"?b.damage:(b[col]??"");
+    if(av<bv)return-sortDir; if(av>bv)return sortDir; return 0;
+  });
+  document.querySelectorAll("thead th").forEach(th=>{th.className="";});
+  event.currentTarget.className=sortDir>0?"sort-asc":"sort-desc";
+  currentPage=1; renderTable();
+}
+
+function applyFilters() {
+  const cat=document.getElementById("filterCategory").value;
+  const store=document.getElementById("filterStore").value;
+  const month=document.getElementById("filterMonth").value;
+  const q=document.getElementById("searchInput").value.toLowerCase();
+
+  window.filteredData=(window.RAW_DATA||[]).filter(r=>{
+    if(cat&&r.category!==cat)return false;
+    if(store&&r.store!==store)return false;
+    if(month&&!r.date.startsWith(month.replace("-","/")))return false;
+    if(q&&!r.store.toLowerCase().includes(q)&&!r.category_raw.toLowerCase().includes(q))return false;
+    return true;
+  });
+
+  const fd = window.filteredData;
+  const total=fd.length;
+  const damage=fd.reduce((s,r)=>s+r.damage,0);
+  document.getElementById("kpi-total").textContent=total+"件";
+  document.getElementById("kpi-damage").textContent=damage.toLocaleString()+"円";
+  document.getElementById("dataInfo").innerHTML=`集計対象：<strong>${total}件</strong>`;
+
+  const storeLabel=document.getElementById("monthlyStoreLabel");
+  if(store){ storeLabel.textContent=store; storeLabel.style.display="inline-block"; }
+  else { storeLabel.style.display="none"; }
+
+  const storeSuffix = store ? store : "全店舗";
+  document.getElementById("catChartSub").textContent=`件数ベース・${storeSuffix}`;
+  document.getElementById("damageChartSub").textContent=`各カテゴリの損失規模・${storeSuffix}`;
+
+  buildMonthlyChart(fd);
+  buildCategoryChart(fd);
+  buildDamageCatChart(fd);
+  currentPage=1; renderTable();
+}
+
+window.addEventListener("DOMContentLoaded", async ()=>{
+  // まず静的データでフォールバック表示
+  populateFilters();
+  buildMonthlyChart(window.RAW_DATA);
+  buildCategoryChart(window.RAW_DATA);
+  buildDamageCatChart(window.RAW_DATA);
+  buildStoreRank();
+  renderTable();
+
+  // GAS URLが設定されていれば動的データに切り替え
+  if (!GAS_URL.includes("【デプロイID】")) {
+    await loadData();
+  } else {
+    document.getElementById("updateBadge").textContent = "静的データ表示中";
+    document.getElementById("footerUpdate").textContent = "データ出典：埋め込み静的データ（GAS URL未設定）";
+  }
+});
+</script>
+</body>
+</html>
